@@ -93,7 +93,7 @@ def load_reward_manager(config, tokenizer, num_examine, **reward_kwargs):
     compute_score = get_custom_reward_fn(config)
     final_compute_score = compute_score
 
-    if compute_score is None:
+    if compute_score is None and reward_manager_name != "causal_discovery":
         sandbox_config = config.reward_model.get("sandbox_fusion")
         sandbox_url = sandbox_config.get("url") if sandbox_config else None
         memory_limit_mb = sandbox_config.get("memory_limit_mb", 1024)

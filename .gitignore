@@ -1,4 +1,9 @@
 
+CLAUDE.md 
+CAUSAL_FACTOR_DISCOVERY_PLAN.md
+.serena/
+.claude/
+.gemini/
 **/*.pt
 **/checkpoints
 **/wget-log

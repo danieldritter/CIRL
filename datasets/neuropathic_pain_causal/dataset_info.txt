@@ -1,0 +1,24 @@
+Neuropathic Pain Causal Discovery Dataset
+==================================================
+
+Source CSV: ./scripts/neuropathic/neuro_R_shoulder_impingement.csv
+Processed with seed: 42
+Total original patients: 100
+Train samples: 80
+Validation samples: 20
+Documents per sample: 10
+
+Ground Truth Causal Factors:
+- pain_location: Location and distribution of pain
+- range_of_motion: Joint mobility and movement limitations
+- nerve_involvement: Evidence of nerve compression/irritation
+- muscle_weakness: Muscular strength deficits
+- physical_examination_findings: Clinical examination results
+- radiculopathy: Nerve root pathology patterns
+- disc_pathology: Intervertebral disc abnormalities
+
+Target Outcome: right_shoulder_impingement
+
+Original target distribution:
+  0: 80 patients
+  1: 20 patients

@@ -1,0 +1,622 @@
+# Configuration for causal factor discovery training
+# Based on VERL's standard PPO trainer configuration
+
+# specify the default per-component configs
+defaults:
+  - actor@actor_rollout_ref.actor: dp_actor
+  - _self_
+
+# dataset config
+data:
+
+  # Tokenizer class or path. If null, it will be inferred from the model.
+  tokenizer: null
+
+  # Whether to use shared memory for data loading.
+  use_shm: False
+
+  # Training set parquet. Can be a list or a single file.
+  train_files: ~/data/causal/train.parquet
+
+  # Validation parquet. Can be a list or a single file.
+  val_files: ~/data/causal/test.parquet
+
+  # The field in the dataset where the prompt is located. Default is 'prompt'.
+  prompt_key: prompt
+
+  # The field used to select the reward function (if using different ones per example).
+  reward_fn_key: data_source
+
+  # Maximum prompt length. All prompts will be left-padded to this length.
+  max_prompt_length: 2048
+
+  # Maximum response length. Rollout in RL algorithms (e.g. PPO) generates up to this length.
+  max_response_length: 512
+
+  # Batch size sampled for one training iteration of different RL algorithms.
+  train_batch_size: 1024
+
+  # Batch size used during validation. Can be null.
+  val_batch_size: null
+
+  # Whether to return the original input_ids without adding chat template.
+  return_raw_input_ids: False
+
+  # Whether to return the original chat (prompt) without applying chat template.
+  return_raw_chat: False
+
+  # Whether to return the full prompt with chat template.
+  return_full_prompt: False
+
+  # Whether to shuffle the data in the dataloader.
+  shuffle: True
+
+  # num dataloader workers
+  dataloader_num_workers: 8
+
+  # Whether to shuffle the validation set.
+  validation_shuffle: False
+
+  # Whether to filter overlong prompts.
+  filter_overlong_prompts: True
+
+  # Number of workers for filtering overlong prompts.
+  filter_overlong_prompts_workers: 4
+
+  # Truncate the input_ids or prompt if they exceed max_prompt_length.
+  truncation: left
+
+  # The field in the multi-modal dataset where the image is located. Default is 'images'.
+  image_key: images
+
+  # The field in the multi-modal dataset where the video is located.
+  video_key: videos
+
+  # If the remote tokenizer has a Python file, this flag determines whether to allow using it.
+  trust_remote_code: False
+
+  # Optional: specify a custom dataset class path and name if overriding default loading behavior.
+  custom_cls:
+
+    # The path to the file containing your customized dataset class.
+    path: verl/utils/dataset/causal_text_dataset.py
+
+    # The name of the dataset class within the specified file.
+    name: CausalTextDataset
+  
+  # Whether to return multi-modal inputs in the dataset.
+  return_multi_modal_inputs: True
+
+  # Causal discovery specific dataset configuration
+  sample_docs_per_input: 5
+
+  # Sampling strategy for documents: random, 
+  sampling_strategy: random
+
+  # Prompt template to use: default, causal_discovery_v1, structured
+  prompt_template: causal_discovery_v1
+
+  # Maximum number of factors to extract
+  max_factors: 10
+
+  # Key for documents in the dataset
+  documents_key: documents
+
+  # Key for target outcome in the dataset
+  target_outcome_key: target_outcome
+
+  # settings related to data sampler
+  sampler:
+
+    # the path to the module containing a curriculum class
+    class_path: null
+
+    # the name of the curriculum class
+    class_name: null
+
+# config for actor, rollout and reference model
+actor_rollout_ref:
+
+  # Whether it's a hybrid engine, currently only supports hybrid engine
+  hybrid_engine: true
+
+  # common configs for the model
+  model:
+
+    # Huggingface model path
+    path: ~/models/Qwen/Qwen2.5-7B-Instruct
+
+    # Custom chat template for the model.
+    custom_chat_template: null
+
+    # Whether to use shared memory (SHM) for accelerating the loading of model weights
+    use_shm: false
+
+    # Additional Python packages to register huggingface models/tokenizers.
+    external_lib: null
+
+    # Used to override model's original configurations, mainly dropout
+    override_config: {}
+
+    # Enable gradient checkpointing for actor
+    enable_gradient_checkpointing: true
+
+    # Enable activation offloading for actor
+    enable_activation_offload: false
+
+    # Whether to remove padding tokens in inputs during training
+    use_remove_padding: false
+
+    # Set to positive value to enable LoRA (e.g., 32)
+    lora_rank: 0
+
+    # LoRA scaling factor
+    lora_alpha: 16
+
+    # Target modules to apply LoRA
+    target_modules: all-linear
+    
+    # Exclude modules from applying Lora
+    exclude_modules: null
+
+    # Whether to use Liger for linear layer fusion
+    use_liger: false
+
+    # Whether to use custom fused kernels
+    use_fused_kernels: false
+
+    # Options for fused kernels
+    fused_kernel_options:
+
+      # Implementation backend for fused kernels
+      impl_backend: torch
+
+    # Whether to enable loading a remote code model
+    trust_remote_code: false
+
+  # Reference model config
+  ref:
+
+    # actor_rollout_ref.ref: FSDP config same as actor
+    strategy: ${actor_rollout_ref.actor.strategy}
+
+    # config for FSDP strategy
+    fsdp_config:
+
+      # whether to offload parameters in FSDP
+      param_offload: False
+
+      # whether to perform reshard after model forward
+      reshard_after_forward: True
+
+      # Only for FSDP1: prefetch configuration
+      forward_prefetch: False
+
+      # the wrap policy for FSDP model
+      wrap_policy:
+
+        # minimum number of params in a wrapped module
+        min_num_params: 0
+
+    # whether to enable torch.compile
+    use_torch_compile: ${actor_rollout_ref.actor.use_torch_compile}
+
+    # The batch size for one forward pass in log_prob computation
+    log_prob_micro_batch_size: null
+
+    # The batch size for one forward pass in log_prob computation (per GPU)
+    log_prob_micro_batch_size_per_gpu: null
+
+    # enable dynamic batch size for log_prob computation
+    log_prob_use_dynamic_bsz: ${actor_rollout_ref.actor.use_dynamic_bsz}
+
+    # the max token length per GPU
+    log_prob_max_token_len_per_gpu: ${actor_rollout_ref.actor.ppo_max_token_len_per_gpu}
+
+    # sequence parallel size
+    ulysses_sequence_parallel_size: ${actor_rollout_ref.actor.ulysses_sequence_parallel_size}
+
+    # calculate entropy with chunking to reduce memory peak
+    entropy_from_logits_with_chunking: False
+
+    # recompute entropy
+    entropy_checkpointing: False
+
+  # Rollout model config
+  rollout:
+    multi_turn: 
+      enable: False
+    # rollout engine: hf/vllm/sglang
+    name: vllm
+
+    # sync: LLM, async: AsyncLLM
+    mode: sync
+
+    # Sampling temperature for rollout
+    temperature: 0.7
+
+    # Top-k sampling parameter
+    top_k: -1
+
+    # Top-p sampling parameter
+    top_p: 0.9
+
+    # typically the same as data max prompt length
+    prompt_length: ${data.max_prompt_length}
+
+    # typically the same as data max response length
+    response_length: ${data.max_response_length}
+
+    # Rollout model parameters type
+    dtype: bfloat16
+
+    # Fraction of GPU memory used by vLLM for KV cache
+    gpu_memory_utilization: 0.85
+
+    # Whether to ignore EOS and continue generating
+    ignore_eos: False
+
+    # Whether to disable CUDA graph
+    enforce_eager: True
+
+    # Whether to free engine KVCache after generation
+    free_cache_engine: True
+
+    # Which loader to use for rollout model weights
+    load_format: dummy_dtensor
+
+    # for huge model, layered summon can save memory
+    layered_summon: False
+
+    # TP size for rollout
+    tensor_model_parallel_size: 1
+
+    # max number of tokens in a batch
+    max_num_batched_tokens: 8192
+
+    # max length for rollout
+    max_model_len: 4096
+
+    # max length of sequences
+    max_num_seqs: 1024
+
+    # The batch size for one forward pass in log_prob computation
+    log_prob_micro_batch_size: null
+
+    # The batch size for one forward pass in log_prob computation (per GPU)
+    log_prob_micro_batch_size_per_gpu: null
+
+    # enable dynamic batch size for log_prob computation
+    log_prob_use_dynamic_bsz: ${actor_rollout_ref.actor.use_dynamic_bsz}
+
+    # max token length for log_prob computation
+    log_prob_max_token_len_per_gpu: ${actor_rollout_ref.actor.ppo_max_token_len_per_gpu}
+
+    # disable logging statistics
+    disable_log_stats: True
+
+    # may get higher throughput when set to True
+    enable_chunked_prefill: True
+
+    # Whether to sample during training rollout
+    do_sample: True
+
+    # number of responses
+    n: 1
+
+    # Whether to wake up inference engine in multi-stage
+    multi_stage_wake_up: false
+    # Sampling parameters used during validation.
+    val_kwargs:
+
+      # sampling parameters for validation
+      # Top-k sampling parameter. -1 for vLLM rollout, 0 for HF rollout.
+      top_k: -1
+
+      # Top-p sampling parameter. Default 1.0.
+      top_p: 1.0
+
+      # Sampling temperature for rollout.
+      temperature: 0
+
+      # whether to repeat n times for validation
+      n: 1
+
+      # Whether to sample during training rollout. False uses greedy sampling.
+      do_sample: False
+
+# configs for the critic
+critic:
+
+  # Number of rollouts per update
+  rollout_n: ${actor_rollout_ref.rollout.n}
+
+  # fsdp or fsdp2 strategy used for critic model training
+  strategy: ${actor_rollout_ref.actor.strategy}
+  use_dynamic_bsz: ${actor_rollout_ref.actor.use_dynamic_bsz}
+  ppo_micro_batch_size_per_gpu: ${actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu}
+  ppo_micro_batch_size: ${actor_rollout_ref.actor.ppo_micro_batch_size}
+  ppo_mini_batch_size: ${actor_rollout_ref.actor.ppo_mini_batch_size}
+
+  # optimizer configs
+  optim:
+
+    # Learning rate
+    lr: 1e-5
+
+    # Warmup steps ratio
+    lr_warmup_steps_ratio: 0.
+
+    # Minimum LR ratio for cosine schedule
+    min_lr_ratio: null
+
+    # LR warmup style
+    warmup_style: constant
+
+    # Total training steps
+    total_training_steps: -1
+
+    # Weight decay
+    weight_decay: 0.01
+
+  # model config for the critic
+  model:
+
+    # Path to pretrained model weights
+    path: ${actor_rollout_ref.model.path}
+
+    # Whether to use shared memory for loading the model
+    use_shm: False
+
+    # Tokenizer path
+    tokenizer_path: ${actor_rollout_ref.model.path}
+
+    # Hugging Face config override
+    override_config: { }
+
+    # External model implementation
+    external_lib: ${actor_rollout_ref.model.external_lib}
+
+    # Enable gradient checkpointing
+    enable_gradient_checkpointing: True
+
+    # Offload activations to CPU
+    enable_activation_offload: False
+
+    # Use remove padding optimization
+    use_remove_padding: False
+
+    # Whether to trust remote code
+    trust_remote_code: ${actor_rollout_ref.model.trust_remote_code}
+
+    # FSDP-specific config
+    fsdp_config:
+
+      # Whether to offload model parameters to CPU
+      param_offload: False
+
+      # Whether to offload optimizer state to CPU
+      optimizer_offload: False
+
+      # Only for FSDP2: offload param/grad/optimizer during train
+      offload_policy: False
+
+      # Only for FSDP2: Reshard after forward pass
+      reshard_after_forward: True
+
+      # Policy for wrapping layers with FSDP
+      wrap_policy:
+
+        # Minimum number of parameters to trigger wrapping
+        min_num_params: 0
+
+      # Number of GPUs in each FSDP shard group
+      fsdp_size: -1
+
+      # Only for FSDP1: prefetch configuration
+      forward_prefetch: False
+
+    # Set to positive value to enable LoRA
+    lora_rank: 0
+
+    # LoRA scaling factor
+    lora_alpha: 16
+
+    # LoRA target modules
+    target_modules: all-linear
+
+# configs for the reward model
+reward_model:
+
+  # Whether to enable reward model
+  enable: False
+
+  # FSDP strategy
+  strategy: ${actor_rollout_ref.actor.strategy}
+
+  # Reward Manager for causal discovery
+  reward_manager: causal_discovery
+
+# Custom reward manager configuration for causal discovery
+causal_discovery_reward:
+
+  # Reward component weights
+  format_reward_weight: 0.2
+  causal_reward_weight: 0.5
+  refutation_reward_weight: 0.3
+
+  # Factor parser configuration
+  factor_parser:
+    parser_type: list
+    max_factors: 10
+    validation_enabled: true
+
+  # Causal discovery configuration
+  causal_method: PC-bidirectional
+  min_factors_for_causal: 2
+
+
+# NLI processor configuration
+nli:
+
+  # NLI model for tabular conversion
+  model_name: microsoft/deberta-v3-base
+
+  # Template for hypothesis generation
+  hypothesis_template: "The document contains information about {factor}."
+  max_nli_length: ${data.max_response_length}
+  # Confidence threshold for binary conversion
+  confidence_threshold: 0.7
+
+  # Batch size for NLI processing
+  batch_size: 32
+
+  # Cache directory for NLI results
+  cache_dir: ~/.cache/verl/nli
+
+  # FSDP configuration for NLI model
+  fsdp_config:
+    fsdp_size: 1
+    mixed_precision:
+      param_dtype: bf16
+      reduce_dtype: fp32
+      buffer_dtype: fp32
+    use_orig_params: false
+
+# config for the algorithm
+algorithm:
+
+  # Required when using verl.utils.omega_conf_to_dataclass
+  _target_: verl.trainer.config.AlgoConfig
+
+  # Discount factor for future rewards
+  gamma: 0.99
+
+  # Trade-off between bias and variance in the GAE estimator
+  lam: 0.95
+
+  # Advantage estimator type
+  adv_estimator: gae
+
+  # Whether to normalize advantages by std
+  norm_adv_by_std_in_grpo: True
+
+  # Whether to enable in-reward KL penalty
+  use_kl_in_reward: False
+
+  # How to estimate KL divergence
+  kl_penalty: kl
+
+  # KL control configuration
+  kl_ctrl:
+
+    # Required when using verl.utils.omega_conf_to_dataclass
+    _target_: verl.trainer.config.KLControlConfig
+
+    # KL control type
+    type: fixed
+
+    # Initial coefficient for KL penalty
+    kl_coef: 0.02
+
+    # Horizon value for adaptive controller
+    horizon: 10000
+
+    # Target KL divergence
+    target_kl: 0.1
+
+  # Whether to enable preference feedback PPO
+  use_pf_ppo: False
+
+# config for the trainer
+trainer:
+
+  # Whether to balance batch sizes across distributed workers
+  balance_batch: True
+
+  # Number of epochs in training
+  total_epochs: 10
+
+  # Total training steps
+  total_training_steps: null
+
+  # The steps that will be profiled
+  profile_steps: null
+
+  # Project name for experiment tracking
+  project_name: causal_discovery
+
+  # Experiment name for run identification
+  experiment_name: causal_factor_discovery
+
+  # Logging backends to use
+  logger: [ 'console', 'wandb' ]
+
+  # Number of generations to log during validation
+  log_val_generations: 0
+
+  # Directory for logging rollout data
+  rollout_data_dir: null
+
+  # Directory for logging validation data
+  validation_data_dir: null
+
+  # Number of nodes used in the training
+  nnodes: 1
+
+  # Number of GPUs per node
+  n_gpus_per_node: 2
+
+  # Save frequency for model checkpoints
+  save_freq: 2
+
+  # ESI redundant time
+  esi_redundant_time: 0
+
+  # Resume mode
+  resume_mode: auto
+
+  # Path to resume training from
+  resume_from_path: null
+
+  # Whether to run validation before training begins
+  val_before_train: True
+
+  # Whether to run validation only
+  val_only: False
+
+  # Validation frequency
+  test_freq: -1
+
+  # Number of iterations to warm up the critic
+  critic_warmup: 0
+
+  # Default path to distributed filesystem
+  default_hdfs_dir: null
+
+  # Whether to delete local checkpoints after loading
+  del_local_ckpt_after_load: False
+
+  # Default local directory for saving checkpoints
+  default_local_dir: checkpoints/${trainer.project_name}/${trainer.experiment_name}
+
+  # Maximum number of actor checkpoints to keep
+  max_actor_ckpt_to_keep: null
+
+  # Maximum number of critic checkpoints to keep
+  max_critic_ckpt_to_keep: null
+
+  # Timeout for Ray worker registration
+  ray_wait_register_center_timeout: 300
+
+  # Device to run training on
+  device: cuda
+
+# configs related to ray initialization
+ray_init:
+
+  # Number of CPUs for Ray
+  num_cpus: null
+
+  # Path to save Ray timeline JSON
+  timeline_json_file: null
